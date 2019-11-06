@@ -35,7 +35,9 @@ class Game:
 			result += str(i) + " "
 			for j in range(self.size):
 				result += str(self.board[i][j]) + " "
-			result += "\n"
+			if i != self.size -1:
+				result += "\n"
+		
 		return result
 
 	def valid(self, row, col):
@@ -157,25 +159,27 @@ class Game:
 		while True:
 			if show:
 				print(self)
-				print("player B's turn")
+				print("player B's turn:")
 			move = p1.getMove(self.board)
 			if move == []:
-				print("Game over")
+				print("Game over\n")
 				return 'W'
 			try:
 				self.makeMove('B', move)
 			except GameError:
 				print("Game over: Invalid move by", p1.name)
 				print(move)
+				print("\n")
 				print(self)
 				return 'W'
 			if show:
 				print(move)
+				print("\n")
 				print(self)
-				print("player W's turn")
+				print("player W's turn:")
 			move = p2.getMove(self.board)
 			if move == []:
-				print("Game over")
+				print("Game over\n")
 				return 'B'
 			try:
 				self.makeMove('W', move)
@@ -186,6 +190,7 @@ class Game:
 				return 'B'
 			if show:
 				print(move)
+				print("\n")
 
 	def playNGames(self, n, p1, p2, show):
 		first = p1
@@ -202,7 +207,6 @@ class Game:
 				second.won()
 				print(second.name, "wins")
 			first, second = second, first
-
 
 class Player:
 	name = "Player"
@@ -226,7 +230,6 @@ class Player:
 
 	def getMove(self, board):
 		abstract()
-
 
 class SimplePlayer(Game, Player):
 	def initialize(self, side):
@@ -280,126 +283,140 @@ class HumanPlayer(Game, Player):
 
 
 class MinMaxPlayer(Player, Game):
-    def __init__(self, n, max_depth=3):
-        super().__init__(n)
-        self.max_depth = max_depth
+	def __init__(self, n, max_depth):
+		super().__init__(n)
+		self.max_depth = max_depth
+		
+	def initialize(self, side):
+		self.side = side
+		self.name = "MinMaxPlayer"
+		self.start_time = time.time_ns()
 
-    def initialize(self, side):
-        self.side = side
-        self.name = "MinMaxPlayer"
+	def report(self):
+		print("player:",self.side," algorithm:", self.name, " depth:" , self.max_depth," Execute time:",format(time.time_ns() - self.start_time,','),"ns")
+		
+	def evaluate_function(self, board):
+		moves = self.generateMoves(board, self.side)
+		moves_openent = self.generateMoves(board,self.opponent(self.side))
 
-    def evaluate_function(self, board):
-        moves = self.generateMoves(board, self.side)
-        return len(moves)
+		return len(moves) - len(moves_openent)
+	
+	def getMove(self, board):
+		return self.utill(board, self.side, 1)
+		
+	def utill(self, board, cur_side, depth=0):
+		my_turn = (cur_side == self.side)
+		if depth == self.max_depth:
+			return self.evaluate_function(board)
+		else:
+			moves = self.generateMoves(board, cur_side)
+			chosen_move = []
+			if my_turn:
+				best_value = -1 * math.inf
+				for move in moves:
+					new_board = self.nextBoard(board, cur_side, move)
+					evaluated_value = self.utill( new_board , self.opponent(cur_side), depth + 1)
+					if evaluated_value > best_value:
+						best_value = evaluated_value
+						chosen_move = move
+				if depth == 1:
+					return chosen_move
+				else:
+					return best_value
+			else:
+				best_value = math.inf
+				for move in moves:
+					new_board = self.nextBoard(board, cur_side, move)
+					evaluated_value = self.utill( new_board, self.opponent(cur_side), depth + 1 )
+					if evaluated_value < best_value:
+						best_value = evaluated_value
+						chosen_move = move
+				if depth == 1:
+					return chosen_move
+				else:
+					return best_value
 
-    def getMove(self, board):
-        return self.utill(board, self.side, 1)
-
-    def utill(self, board, cur_side, depth=0):
-        my_side = (cur_side == self.side)
-
-        if depth == self.max_depth:
-            return self.evaluate_function(board)
-        else:
-            moves = self.generateMoves(board, cur_side)
-            chosen_move = []
-            if my_side:
-                best_value = -math.inf
-                for move in moves:
-                    new_board = self.nextBoard(board, cur_side, move)
-                    evaluated_value = self.utill( new_board , self.opponent(cur_side), depth + 1)
-                    if evaluated_value > best_value:
-                        best_value = evaluated_value
-                        chosen_move = move
-                if depth == 1:
-                    return chosen_move
-                else:
-                    return best_value
-            else:
-                best_value = math.inf
-                for move in moves:
-                    new_board = self.nextBoard(board, cur_side, move)
-                    evaluated_value = self.utill( new_board, self.opponent(cur_side), depth + 1 )
-                    if evaluated_value < best_value:
-                        best_value = evaluated_value
-                        chosen_move = move
-                if depth == 1:
-                    return chosen_move
-                else:
-                    return best_value
 
 
 class AlphaBetaPlayer(Player, Game):
-    def __init__(self, n, max_depth=3):
-        super().__init__(n)
-        self.max_depth = max_depth
-
-    def initialize(self, side):
-        self.side = side
-        self.name = "AlphaBetaPlayer"
-
-    def evaluate_function(self, board):
-        moves = self.generateMoves(board, self.side)
-        return len(moves)
-
-    def getMove(self, board):
-        return self.utill(board, -math.inf, math.inf, self.side, 1)
-
-    def utill(self, board, alpha, beta, cur_side, depth=1):
-        our_turn = (cur_side == self.side)
-
-        if self.max_depth < depth:
-            return self.evaluate_function(board)
-
-        else:
-            moves = self.generateMoves(board, cur_side)
-            chosen_move = []
-            if our_turn:
-                best_value = -math.inf
-                for move in moves:
-                    new_board = self.nextBoard(board, cur_side, move)
-                    evaluated_value = self.utill( new_board, alpha, beta, self.opponent(cur_side), depth + 1 )
-                    if evaluated_value > best_value:
-                        best_value = evaluated_value
-                        chosen_move = move
-                    alpha = max(alpha, best_value)
-                    if beta < alpha:
-                        break
-                if depth == 1:
-                    return chosen_move
-                else:
-                    return best_value
-
-            else:
-                best_value = math.inf
-                for move in moves:
-                    new_board = self.nextBoard(board, cur_side, move)
-                    evaluated_value = self.utill(new_board, alpha, beta, self.opponent(cur_side), depth + 1)
-                    if evaluated_value < best_value:
-                        best_value = evaluated_value
-                        chosen_move = move
-                    beta = min(beta, best_value)
-                    if beta < alpha:
-                        break
-                if depth == 1:
-                    return chosen_move
-                else:
-                    return best_value
+	def __init__(self, n, max_depth=4):
+		super().__init__(n)
+		self.max_depth = max_depth
+		self.start_time = time.time_ns()
+		
+	def initialize(self, side):
+		self.side = side
+		self.name = "AlphaBetaPlayer"
+	
+	def report(self):
+		print("player:",self.side," algorithm:", self.name, " depth:" , self.max_depth," Execute time:",format(time.time_ns() - self.start_time,','),"ns" )
+	
+	def evaluate_function(self, board ):
+		moves = self.generateMoves(board, self.side)
+		moves_openent = self.generateMoves(board , self.opponent(self.side))
+		return len(moves) - len(moves_openent)
+	
+	
+	def getMove(self, board):
+		return self.utill(board, -math.inf, math.inf, self.side, 1)
+		
+	def utill(self, board, alpha, beta, cur_side, depth=1):
+		my_turn = (cur_side == self.side)
+		
+		if self.max_depth == depth:
+			return self.evaluate_function(board)
+		else:
+			moves = self.generateMoves(board, cur_side)
+			chosen_move = []
+			if my_turn:
+				best_value = -math.inf
+				for move in moves:
+					new_board = self.nextBoard(board, cur_side, move)
+					evaluated_value = self.utill( new_board, alpha, beta, self.opponent(cur_side), depth + 1 )
+					if evaluated_value > best_value:
+						best_value = evaluated_value
+						chosen_move = move
+					alpha = max(alpha, best_value)
+					if beta < alpha:
+						break
+				if depth == 1:
+					return chosen_move
+				else:
+					return best_value
+			else:
+				best_value = math.inf
+				for move in moves:
+					new_board = self.nextBoard(board, cur_side, move)
+					evaluated_value = self.utill(new_board, alpha, beta, self.opponent(cur_side), depth + 1)
+					if evaluated_value < best_value:
+						best_value = evaluated_value
+						chosen_move = move
+					beta = min(beta, best_value)
+					if beta < alpha:
+						break
+				if depth == 1:
+					return chosen_move
+				else:
+					return best_value
+		
+		
 
 
 if __name__ == '__main__':
-    game_size_board = 8
-    game = Game(game_size_board)
-
-    player1 = AlphaBetaPlayer(game_size_board, 4)
-    player1.initialize('B')
-
-    player2 = SimplePlayer(game_size_board)
-    player2.initialize('W')
-
-    start_time = time.time()
-
-    game.playOneGame(player1, player2, True)
-
-    print("Execute time:",time.time() - start_time)
+	game_size_board = 8
+	game = Game(game_size_board)
+	
+	# player1 = AlphaBetaPlayer(game_size_board, max_depth=5)
+	player1 = MinMaxPlayer(game_size_board, max_depth = 4)
+	player1.initialize('B')
+	
+	# player2 = SimplePlayer(game_size_board)
+	# player2 = MinMaxPlayer(game_size_board,max_depth=4)
+	player2 = AlphaBetaPlayer(game_size_board, max_depth=5)
+	player2.initialize('W')
+	
+	game.playOneGame(player1, player2, True)
+	player1.report()
+	player2.report()
+   
 
